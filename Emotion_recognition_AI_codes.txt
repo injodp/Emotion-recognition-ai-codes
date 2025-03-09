@@ -1,0 +1,146 @@
+# Foto's maken en opslaan voor dataset training
+import cv2
+import os
+from datetime import datetime
+from picamera2 import Picamera2
+import time
+
+def create_folder(name):
+    dataset_folder = "dataset"
+    if not os.path.exists(dataset_folder):
+        os.makedirs(dataset_folder)
+    
+    person_folder = os.path.join(dataset_folder, name)
+    if not os.path.exists(person_folder):
+        os.makedirs(person_folder)
+    return person_folder
+
+def capture_photos(name):
+    folder = create_folder(name)
+    
+    picam2 = Picamera2()
+    picam2.configure(picam2.create_preview_configuration(main={"format": 'XRGB8888', "size": (640, 480)}))
+    picam2.start()
+    
+    time.sleep(2)
+    photo_count = 0
+    
+    while True:
+        frame = picam2.capture_array()
+        cv2.imshow('Capture', frame)
+        key = cv2.waitKey(1) & 0xFF
+        
+        if key == ord(' '):
+            photo_count += 1
+            filename = f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            filepath = os.path.join(folder, filename)
+            cv2.imwrite(filepath, frame)
+            print(f"Photo {photo_count} saved: {filepath}")
+        elif key == ord('q'):
+            break
+    
+    cv2.destroyAllWindows()
+    picam2.stop()
+
+if __name__ == "__main__":
+    capture_photos("person_name")
+
+# Dataset Conversie Code
+import cv2
+import os
+import numpy as np
+import pickle
+
+def convert_images_to_pickle(dataset_folder, output_file):
+    data = {"encodings": [], "labels": []}
+    for label in os.listdir(dataset_folder):
+        label_path = os.path.join(dataset_folder, label)
+        if not os.path.isdir(label_path):
+            continue
+        for image_name in os.listdir(label_path):
+            image_path = os.path.join(label_path, image_name)
+            image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            image = cv2.resize(image, (48, 48))
+            data["encodings"].append(image)
+            data["labels"].append(label)
+    with open(output_file, "wb") as f:
+        pickle.dump(data, f)
+
+convert_images_to_pickle("dataset", "dataset.pickle")
+
+# Trainingsscript voor AI
+import tensorflow as tf
+import numpy as np
+import pickle
+
+def load_data(pickle_file):
+    with open(pickle_file, "rb") as f:
+        data = pickle.load(f)
+    X = np.array(data["encodings"]).reshape(-1, 48, 48, 1) / 255.0
+    y = np.array(data["labels"])
+    return X, y
+
+X, y = load_data("dataset.pickle")
+model = tf.keras.models.Sequential([
+    tf.keras.layers.Conv2D(32, (3,3), activation='relu', input_shape=(48,48,1)),
+    tf.keras.layers.MaxPooling2D((2,2)),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(128, activation='relu'),
+    tf.keras.layers.Dense(len(set(y)), activation='softmax')
+])
+
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+model.fit(X, y, epochs=10, validation_split=0.2)
+model.save("emotion_recognition_custom_model.h5")
+
+# Live Gezichts- en Emotieherkenning
+import face_recognition
+import cv2
+import numpy as np
+from picamera2 import Picamera2
+import tensorflow as tf
+import pickle
+
+with open("encodings.pickle", "rb") as f:
+    data = pickle.loads(f.read())
+known_face_encodings = data["encodings"]
+known_face_names = data["names"]
+
+emotion_model = tf.keras.models.load_model("emotion_recognition_custom_model.h5")
+emotion_labels = ['happy', 'sad', 'angry', 'neutral']
+
+picam2 = Picamera2()
+picam2.configure(picam2.create_preview_configuration(main={"format": 'XRGB8888', "size": (640, 480)}))
+picam2.start()
+
+while True:
+    frame = picam2.capture_array()
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    face_locations = face_recognition.face_locations(rgb_frame)
+    face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+    
+    for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+        matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
+        name = "Unknown"
+        face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
+        best_match_index = np.argmin(face_distances)
+        if matches[best_match_index]:
+            name = known_face_names[best_match_index]
+        
+        face_roi = cv2.resize(frame[top:bottom, left:right], (48, 48))
+        face_roi = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+        face_roi = np.expand_dims(face_roi, axis=0)
+        face_roi = np.expand_dims(face_roi, axis=-1) / 255.0
+        emotion_index = np.argmax(emotion_model.predict(face_roi))
+        emotion = emotion_labels[emotion_index]
+        
+        label = f"{name} | {emotion}"
+        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+        cv2.putText(frame, label, (left, top-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+    
+    cv2.imshow("Face and Emotion Recognition", frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cv2.destroyAllWindows()
+picam2.stop()
