@@ -1,4 +1,7 @@
 # Foto's maken en opslaan voor dataset training
+
+
+
 import cv2
 import os
 from datetime import datetime
@@ -45,6 +48,8 @@ def capture_photos(name):
 if __name__ == "__main__":
     capture_photos("person_name")
 
+
+
 # Dataset Conversie Code
 import cv2
 import os
@@ -67,6 +72,8 @@ def convert_images_to_pickle(dataset_folder, output_file):
         pickle.dump(data, f)
 
 convert_images_to_pickle("dataset", "dataset.pickle")
+
+
 
 # Trainingsscript voor AI
 import tensorflow as tf
@@ -92,6 +99,9 @@ model = tf.keras.models.Sequential([
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 model.fit(X, y, epochs=10, validation_split=0.2)
 model.save("emotion_recognition_custom_model.h5")
+
+
+
 
 # Live Gezichts- en Emotieherkenning
 import face_recognition
