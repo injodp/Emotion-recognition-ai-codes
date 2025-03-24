@@ -54,38 +54,6 @@ if __name__ == "__main__":
     capture_photos("person_name")  # Roep de functie aan met een naam als argument
 
 
-# conversie code
-
-
-import cv2  # OpenCV voor beeldverwerking
-import os  # Bestandsbeheer
-import numpy as np  # Werken met arrays
-import pickle  # Opslaan van data in een binair formaat
-
-def convert_images_to_pickle(dataset_folder, output_file):
-    """
-    Converteert afbeeldingen in de dataset naar een pickle-bestand.
-    """
-    data = {"encodings": [], "labels": []}  # Dictionary voor dataopslag
-    
-    for label in os.listdir(dataset_folder):  # Door alle submappen (labels) bladeren
-        label_path = os.path.join(dataset_folder, label)  # Pad naar de map
-        if not os.path.isdir(label_path):  # Controleer of het een map is
-            continue  # Sla niet-mappen over
-        
-        for image_name in os.listdir(label_path):  # Door de afbeeldingen bladeren
-            image_path = os.path.join(label_path, image_name)  # Volledige afbeeldingspad
-            image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)  # Laad afbeelding in grijswaarden
-            image = cv2.resize(image, (48, 48))  # Schaal afbeelding naar 48x48 pixels
-            
-            data["encodings"].append(image)  # Voeg afbeelding toe aan dataset
-            data["labels"].append(label)  # Voeg label toe aan dataset
-    
-    with open(output_file, "wb") as f:  # Open het bestand in 'write binary' modus
-        pickle.dump(data, f)  # Sla data op in een pickle-bestand
-
-convert_images_to_pickle("dataset", "dataset.pickle")  # Voer conversie uit
-
 
 # trainingsscript
 
